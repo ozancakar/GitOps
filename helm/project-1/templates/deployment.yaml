@@ -1,0 +1,56 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.application }}-{{ .Values.environment }}
+  labels:
+    app: {{ .Values.application }}-{{ .Values.environment }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.application }}-{{ .Values.environment }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.application }}-{{ .Values.environment }}
+    spec:
+      restartPolicy: {{ .Values.restartPolicy }}
+      containers:
+      - name: {{ .Values.application }}
+        {{ if eq .Values.environment "dev" }}
+        image: {{ .Values.image.dev.repository }}:{{ .Values.image.dev.tag }}
+        {{ else if eq .Values.environment "test" }}
+        image: {{ .Values.image.test.repository }}:{{ .Values.image.test.tag }}
+        {{ else if eq .Values.environment "preprod" }}
+        image: {{ .Values.image.preprod.repository }}:{{ .Values.image.preprod.tag }}
+        {{ else if eq .Values.environment "prod" }}
+        image: {{ .Values.image.prod.repository }}:{{ .Values.image.prod.tag }}
+        {{ end }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.containerPort }}
+        resources:
+          requests:
+            cpu: {{ .Values.resources.requests.cpu }}
+            memory: "{{ .Values.resources.requests.memory }}"
+          limits:
+            cpu: {{ .Values.resources.limits.cpu }}
+            memory: "{{ .Values.resources.limits.memory }}"
+        env:
+        {{- include "helpers.list-env-variables-cm-common" . | indent 8 }}
+        {{- include "helpers.list-env-variables-sec-common" . | indent 8 }}
+        {{ if eq .Values.environment "dev" }}
+        {{- include "helpers.list-env-variables-cm-dev" . | indent 8 }}
+        {{- include "helpers.list-env-variables-secret-dev" . | indent 8 }}
+        {{ else if eq .Values.environment "test" }}
+        {{- include "helpers.list-env-variables-cm-test" . | indent 8 }}
+        {{- include "helpers.list-env-variables-secret-test" . | indent 8 }}
+        {{ else if eq .Values.environment "preprod" }}
+        {{- include "helpers.list-env-variables-cm-preprod" . | indent 8 }}
+        {{- include "helpers.list-env-variables-secret-preprod" . | indent 8 }}
+        {{ else if eq .Values.environment "prod" }}
+        {{- include "helpers.list-env-variables-cm-prod" . | indent 8 }}
+        {{- include "helpers.list-env-variables-secret-prod" . | indent 8 }}
+        {{ end }}

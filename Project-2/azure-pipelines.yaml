@@ -1,0 +1,29 @@
+pool:
+  name: linux
+
+trigger:
+ branches:
+  include:
+    - dev
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: Pipeline-Template/Pipeline-Template
+      ref: dev
+
+extends:
+  template: /microservice/multi-csproj-images.yaml@templates
+  parameters:
+    appName:
+     - path: src/Api/Service.Api
+       key: project-core-bkm
+     - path: src/Api/Core.App
+       key: project-core-app
+     - path: src/Api/Security.Api
+       key: project-core-security
+     - path: src/Api/Service-2.Api
+       key: project-core-2-acs    
+     - path: src/Api/External.Api
+       key: project-core-external  

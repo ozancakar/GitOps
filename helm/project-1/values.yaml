@@ -1,0 +1,83 @@
+# Default values for denemeproject.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Common controls
+environment: test
+application: project-1
+containerPort: 8082
+
+# Service controls
+service:
+  name: project-1
+  type: ClusterIP
+  port: 8082
+
+# Route controls
+route:
+  name: project-1
+  dev:
+    hostName: project-1.apps.dev.domain.com
+  test:
+    hostName: project-1.apps.test.domain.com
+    hostNameHttps: project-1.test.domain.com
+  preprod:
+    hostName: denemeproject-preprod.apps.ocptest.swo.local
+  prod:
+    hostName: denemeproject-prod.apps.ocptest.swo.local
+
+# Deployment controls
+restartPolicy: Always
+
+replicas: 1
+resources:
+  requests:
+    cpu: 100m
+    memory: "128Mi"
+  limits:
+    cpu: 300m
+    memory: "512Mi"
+
+image:
+  pullPolicy: Always
+  dev:
+    repository: myharbor.mydomain.com/dev/project-1
+    tag: latest
+  test:
+    repository: myharbor.mydomain.com/test/project-1
+    tag: latest
+  preprod:
+    repository: ozancakar/preprod/denemeproject
+    tag: preprodlatest
+  prod:
+    repository: ozancakar/prod/denemeproject
+    tag: prodlatest
+
+envVar:
+  configmap:
+    common:
+      #APPDYNAMICS_AGENT_REUSE_NODE_NAME: true
+      #APPDYNAMICS_AGENT_REUSE_NODE_NAME_PREFIX: Instance
+    dev:
+      SPRING_PROFILES_ACTIVE: "dev"
+      TZ: Europe/Istanbul
+    test:
+      SPRING_PROFILES_ACTIVE: test
+      TZ: Europe/Istanbul
+    preprod:
+      SPRING_PROFILES_ACTIVE: preprod
+      TZ: Europe/Istanbul
+    prod:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: Europe/Istanbul
+  secret:
+    common:
+      #ORTAK_LINK: password
+    dev:
+      #db_pass: 123123
+    test:
+      #db_pass: 123123
+    preprod:
+      #db_pass: 123123
+    prod:
+      #db_pass: 123123

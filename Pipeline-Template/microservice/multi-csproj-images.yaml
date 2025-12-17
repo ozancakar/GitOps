@@ -1,0 +1,109 @@
+# ASP.NET
+# Build and test ASP.NET projects.
+# Add steps that publish symbols, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/apps/aspnet/build-aspnet-4
+
+variables:
+  - group: arccreds
+  - group: argocd
+
+  - name: BRANCH_NAME
+    value: $[replace(variables['Build.SourceBranch'], 'refs/heads/', '')]
+
+  - name: REGISTRY
+    value: harbor.domain.com.tr/dev/
+
+parameters:
+- name: appName 
+  type: object 
+  default: []
+
+steps:
+
+- script: |
+    dotnet --version
+  displayName: Say hello
+- ${{ each app in parameters.appName }} :
+  - task: SonarQubePrepare@4
+    inputs:
+      SonarQube: 'sonar-connection'
+      scannerMode: 'MSBuild'
+      projectKey: "${{ app.key }}-$(BRANCH_NAME)"
+      projectName: "${{ app.key }}-$(BRANCH_NAME)"
+      extraProperties: |
+        sonar.projectKey=${{ app.key }}-$(BRANCH_NAME)
+        sonar.projectVersion=$(Build.BuildNumber)
+        sonar.cs.opencover.reportsPaths=$(Agent.TempDirectory)/**/coverage.opencover.xml
+        sonar.qualitygate.wait=true
+        sonar.qualitygate.timeout=300
+  - task: DotNetCoreCLI@2
+    displayName: Restore
+    inputs:
+      command: restore
+      projects: "${{ app.path }}/*.csproj"
+      feedsToUse: config
+      nugetConfigPath: nuget.config
+      externalFeedCredentials: nuget-connection-dev
+
+  - task: DotNetCoreCLI@2
+    displayName: dotnet build
+    inputs:
+      command: 'build'
+      projects: "${{ app.path }}/*.csproj"
+
+  - task: DotNetCoreCLI@2
+    displayName: dotnet test
+    inputs:
+      command: 'test'
+      projects: "tests/**/*.csproj"
+      arguments: '--collect "XPlat Code Coverage;Format=opencover"'
+
+  - task: SonarQubeAnalyze@4
+    inputs:
+      jdkversion: 'JAVA_HOME'
+      
+  - task: SonarQubePublish@5
+    inputs:
+      pollingTimeoutSec: '300'
+
+- script: |
+    TAG=$(BRANCH_NAME).$(Build.BuildId)
+    echo "##vso[task.setvariable variable=TAG]$TAG" 
+    echo "##vso[task.setvariable variable=TAG;isOutput=true]$TAG"
+  condition: succeeded()
+  displayName: Setting TAG env variable
+  name: setTag
+
+- script: |
+    DOCKER_REGISTRY=$(REGISTRY)
+    echo $DOCKER_REGISTRY
+    echo "##vso[task.setvariable variable=DOCKER_REGISTRY]$DOCKER_REGISTRY"
+    echo "##vso[task.setvariable variable=DOCKER_REGISTRY;isOutput=true]$DOCKER_REGISTRY"
+  condition: succeeded()
+  displayName: Setting DOCKER_REGISTRY env variable
+  name: setDockerImage
+
+- task: DockerCompose@0
+  displayName: "Building Docker Image"
+  condition: succeeded()
+  inputs:
+    containerregistrytype: 'Container Registry'
+    dockerRegistryEndpoint: 'harbor-connection'
+    dockerComposeFile: 'docker-compose.yaml'
+    action: 'Run a Docker Compose command'
+    dockerComposeCommand: 'build --build-arg ARCFEED=$(ARCFEED) --build-arg ARCPASSWORD=$(System.AccessToken) --no-cache'
+
+- ${{ each app in parameters.appName }}:
+  - task: Docker@2
+    displayName: DockerPush
+    inputs:
+      containerRegistry: 'harbor-connection'
+      command: 'push'
+      repository: "dev/${{ app.key }}"
+      tags: '$(BRANCH_NAME).$(Build.BuildId)'
+  - script: |
+      echo "${{app.key }}-$(BRANCH_NAME)"
+      argocd --insecure --grpc-web login $ARGO_URL:443 --username "$ARGO_USERNAME" --password "$ARGO_PASSWORD"
+      argocd app set "${{ app.key }}-$(BRANCH_NAME)" -p image.dev.tag="$(BRANCH_NAME).$(Build.BuildId)" 
+      argocd app sync "${{ app.key }}-$(BRANCH_NAME)"
+    displayName: argocd 

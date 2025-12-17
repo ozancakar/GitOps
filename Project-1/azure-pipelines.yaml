@@ -1,0 +1,17 @@
+pool:
+  name: linux
+
+trigger:
+ branches:
+  include:
+    - dev
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: Pipeline-Template/Pipeline-Template
+      ref: dev
+
+extends:
+  template: /microservice/pipeline.yaml@templates

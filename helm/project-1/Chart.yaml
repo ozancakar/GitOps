@@ -1,0 +1,5 @@
+apiVersion: v2
+description: A Helm chart for project-1
+name: project-1
+type: application
+version: 0.0.1

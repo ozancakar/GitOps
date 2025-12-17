@@ -1,0 +1,83 @@
+# ASP.NET
+# Build and test ASP.NET projects.
+# Add steps that publish symbols, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/apps/aspnet/build-aspnet-4
+
+variables:
+  - group: arccreds
+  - group: argocd
+
+  - name: BRANCH_NAME
+    value: $[replace(variables['Build.SourceBranch'], 'refs/heads/', '')]
+
+steps:
+
+- script: |
+    echo $(ARCFEED)
+    echo $(ARCPASSWORD)
+    dotnet --version
+  displayName: Say hello
+
+- task: SonarQubePrepare@4
+  inputs:
+    SonarQube: 'sonar-connection'
+    scannerMode: 'MSBuild'
+    projectKey: '$(Build.Repository.Name)-$(BRANCH_NAME)'
+    projectName: '$(Build.Repository.Name)-$(BRANCH_NAME)'
+    extraProperties: |
+      sonar.projectVersion=$(Build.BuildNumber)
+      sonar.projectKey=$(Build.Repository.Name)-$(BRANCH_NAME)
+      sonar.cs.opencover.reportsPaths=$(Agent.TempDirectory)/**/coverage.opencover.xml
+
+- task: DotNetCoreCLI@2
+  displayName: Restore
+  inputs:
+    command: restore
+    projects: '**/*.csproj'
+    feedsToUse: config
+    nugetConfigPath: nuget.config
+    externalFeedCredentials: nuget-connection-dev
+
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'build'
+    projects: '**/*.csproj'
+
+- task: DotNetCoreCLI@2
+  displayName: dotnet test
+  inputs:
+    command: 'test'
+    projects: "tests/**/*.csproj"
+    arguments: '--collect "XPlat Code Coverage;Format=opencover"'
+
+- task: SonarQubeAnalyze@4
+  inputs:
+    jdkversion: 'JAVA_HOME'
+    
+- task: SonarQubePublish@5
+  inputs:
+    pollingTimeoutSec: '300'
+
+- task: Docker@2
+  inputs:
+    containerRegistry: 'harbor-connection'
+    repository: 'dev/$(Build.Repository.Name)'
+    command: 'build'
+    Dockerfile: '**/Dockerfile'
+    arguments: '--build-arg ARCFEED="$(ARCFEED)" --build-arg ARCPASSWORD="$(System.AccessToken)"'
+    tags: '$(BRANCH_NAME).$(Build.BuildId)'
+
+- task: Docker@2
+  displayName: DockerPush
+  inputs:
+    containerRegistry: 'harbor-connection'
+    command: 'push'
+    repository: 'dev/$(Build.Repository.Name)'
+    tags: '$(BRANCH_NAME).$(Build.BuildId)'
+
+- script: |
+    echo "$(Build.Repository.Name)-$(BRANCH_NAME)"
+    argocd --insecure --grpc-web login $ARGO_URL:443 --username "$ARGO_USERNAME" --password "$ARGO_PASSWORD"
+    argocd app set "$(Build.Repository.Name)-$(BRANCH_NAME)" -p image.dev.tag="$(BRANCH_NAME).$(Build.BuildId)" 
+    argocd app sync "$(Build.Repository.Name)-$(BRANCH_NAME)"
+  displayName: argocd

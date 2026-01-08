@@ -9,6 +9,15 @@ variables:
 
   - name: BRANCH_NAME
     value: $[replace(variables['Build.SourceBranch'], 'refs/heads/', '')]
+    
+  - name: BUILD_DATE
+    value: $[format('{0:yyyyMMdd}', pipeline.startTime)]
+
+  - name: BRANCH_BUILD_COUNTER
+    value: $[counter(format('{0}-{1}', variables['BUILD_DATE'], variables['BRANCH_NAME']), 1)]
+
+  - name: BUILD_VERSION
+    value: $[format('2.0.{0}.{1}', variables['BUILD_DATE'], variables['BRANCH_BUILD_COUNTER'])]     
 
 steps:
 

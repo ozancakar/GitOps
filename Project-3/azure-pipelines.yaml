@@ -1,0 +1,44 @@
+name: 1.0.$(date:yyyyMMdd)$(rev:.r)
+
+variables:
+  - name: solution
+    value: '**/*.sln'
+
+  - name: buildPlatform
+    value: 'Any CPU'
+
+  - name: buildConfiguration
+    value: 'Release'
+
+  - name: branch
+    value: '$(Build.SourceBranchName)'
+
+  - name: poolName
+    ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
+      value: windows-prod
+    ${{ elseif eq(variables['Build.SourceBranchName'], 'dev') }}:
+      value: windows-dev
+    ${{ elseif eq(variables['Build.SourceBranchName'], 'test') }}:
+      value: windows-test
+    ${{ elseif eq(variables['Build.SourceBranchName'], 'release') }}:
+      value: windows-prep
+    ${{ else }}:
+      value: windows-default
+
+pool:
+  name: $(poolName)
+
+trigger:
+ branches:
+  include:
+    - $(Build.SourceBranchName)
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: pipeline-templates/pipeline-templates
+      ref: ${{ variables['Build.SourceBranch'] }}
+
+extends:
+  template: /dotnet/build-pipelines.yaml@templates

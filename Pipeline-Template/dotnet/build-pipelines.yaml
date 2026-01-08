@@ -1,0 +1,89 @@
+# ASP.NET
+# Build and test ASP.NET projects.
+# Add steps that publish symbols, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/apps/aspnet/build-aspnet-4
+
+
+steps:
+
+# - task: SonarQubePrepare@5
+#   displayName: 'Prepare SonarQube analysis'
+#   inputs:
+#     SonarQube: 'sonar-connection'
+#     scannerMode: 'MSBuild'
+#     projectKey: '$(Build.Repository.Name)-$(Build.SourceBranchName)'
+#     projectName: '$(Build.Repository.Name)-$(Build.SourceBranchName)'
+#     extraProperties: |
+#       sonar.projectVersion=$(Build.BuildNumber)
+
+# - task: NuGetAuthenticate@1
+
+# - task: NuGetToolInstaller@1
+#   displayName: 'Install NuGet'
+
+# - task: NuGetCommand@2
+#   displayName: 'Clear NuGet cache'
+#   inputs:
+#     command: 'custom'
+#     arguments: 'locals all -clear'
+
+# - task: NuGetCommand@2
+#   displayName: 'NuGet restore'
+#   inputs:
+#     command: restore
+#     restoreSolution: '$(solution)'
+#     feedsToUse: config
+#     nugetConfigPath: 'nuget.config'
+#     arguments: '-NoCache -DisableParallelProcessing -Verbosity detailed'
+#     # includeNuGetOrg: true
+
+- task: VSBuild@1
+  displayName: 'Build solution'
+  inputs:
+    solution: '$(solution)'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+# - task: SonarQubePublish@5
+#   displayName: 'Publish SonarQube Quality Gate result'
+#   condition: succeeded()
+#   inputs:
+#     pollingTimeoutSec: '300'
+
+# - task: NuGetCommand@2
+#   displayName: 'NuGet pack Build version'
+#   inputs:
+#     command: pack
+#     packagesToPack: '**/*.csproj'
+#     excludeProjects: '**/*.Test.csproj'
+#     versioningScheme: byEnvVar
+#     versionEnvVar: Build.BuildNumber
+#     outputDir: '$(Build.ArtifactStagingDirectory)'
+
+# - task: NuGetCommand@2
+#   displayName: 'NuGet pack Stable version'
+#   inputs:
+#     command: pack
+#     packagesToPack: '**/*.csproj'
+#     excludeProjects: '**/*.Test.csproj'
+#     versioningScheme: 'off'
+#     outputDir: '$(Build.ArtifactStagingDirectory)'
+
+# - powershell: |
+#     # ensure the local-feed folder exists
+#     if ( -not (Test-Path 'D:\\nuget-repo') ) {
+#       New-Item -ItemType Directory -Path 'D:\\nuget-repo' | Out-Null
+#     }
+#   displayName: 'Ensure local feed folder exists'
+
+# - powershell: |
+#     # copy the .nupkg to local feed
+#     Copy-Item -Path "$(Build.ArtifactStagingDirectory)\*.nupkg" -Destination "D:\\nuget-repo" -Force
+#   displayName: 'Push to local feed (folder)'
+
+# - task: NuGetCommand@2
+#   displayName: 'NuGet push to server feed'
+#   inputs:
+#     command: push
+#     packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
+#     publishVstsFeed: 'e787851a-c0e9-432d-a384-9d36e7f7128b'

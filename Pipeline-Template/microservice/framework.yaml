@@ -1,0 +1,104 @@
+# ASP.NET
+# Build and test ASP.NET projects.
+# Add steps that publish symbols, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/apps/aspnet/build-aspnet-4
+parameters:
+- name: appName
+  type: string
+  default: ""
+- name: labelName
+  type: string
+  default: ""
+- name: SEM_VER
+  type: object
+  default: 
+    - key: ""
+      value: ""
+
+- name: BRANCH_NAME
+  type: string
+  default: ""
+
+variables:
+  - group: arccreds
+  - group: argocd
+  
+  - name: BRANCH_NAME
+    value: $[replace(variables['Build.SourceBranch'], 'refs/heads/', '')]
+
+  - name: BUILD_DATE
+    value: $[format('{0:yyyyMMdd}', pipeline.startTime)]
+
+  - name: BRANCH_BUILD_COUNTER
+    value: $[counter(format('{0}-{1}', variables['BUILD_DATE'], variables['BRANCH_NAME']), 1)]
+
+  - name: BUILD_VERSION
+    value: $[format('2.0.{0}.{1}', variables['BUILD_DATE'], variables['BRANCH_BUILD_COUNTER'])]
+
+steps:
+
+- script: |
+    echo $(ARCFEED)
+    echo $(ARCPASSWORD)
+    whoami
+  displayName: Say hello
+
+- task: SonarQubePrepare@4
+  inputs:
+    SonarQube: 'sonar-connection'
+    scannerMode: 'MSBuild'
+    projectKey: '$(Build.Repository.Name)-$(BRANCH_NAME)'
+    projectName: '$(Build.Repository.Name)-$(BRANCH_NAME)'
+    extraProperties: |
+      sonar.projectKey=$(Build.Repository.Name)-$(BRANCH_NAME)
+      sonar.cs.opencover.reportsPaths=$(Agent.TempDirectory)/**/coverage.opencover.xml
+      sonar.qualitygate.wait=true
+      sonar.qualitygate.timeout=300      
+
+- task: DotNetCoreCLI@2
+  displayName: 'Dotnet Restore'
+  inputs:
+    command: restore
+    projects: '**/*.csproj'
+    feedsToUse: 'select'
+    vstsFeed: 'feedID_:)'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Dotnet Build'
+  inputs:
+    command: 'build'
+    projects: '**/*.csproj'
+
+- task: DotNetCoreCLI@2
+  displayName: dotnet test
+  inputs:
+    command: 'test'
+    projects: "tests/**/*.csproj"
+    arguments: '--collect "XPlat Code Coverage;Format=opencover"'
+    
+- task: NuGetAuthenticate@0
+  displayName: 'NuGet Authenticate'
+
+- task: SonarQubeAnalyze@4
+  inputs:
+    jdkversion: 'JAVA_HOME'
+
+- task: SonarQubePublish@5
+  inputs:
+    pollingTimeoutSec: '300'
+
+- task: DotNetCoreCLI@2
+  displayName: 'dotnet pack'
+  inputs:
+    command: pack
+    packagesToPack: '**/*.csproj;!**/*.Tests.csproj'
+    versioningScheme: byEnvVar
+    versionEnvVar: BUILD_VERSION
+
+- task: DotNetCoreCLI@2
+  displayName: 'dotnet push'
+  inputs:
+    command: 'push'
+    packagesToPush: '$(Build.ArtifactStagingDirectory)/*.nupkg'
+    nuGetFeedType: 'internal'
+    publishVstsFeed: 'feedID_:)'
